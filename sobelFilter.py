@@ -1,73 +1,71 @@
-import math
-
 import cv2
 import matplotlib.pyplot as plt
 from convolution import convolution
 import numpy as np
+from timeit import default_timer as timer
 
+from ManualConvolution import get_padding_width_per_side
+from ManualConvolution import add_padding_to_image
+from ManualConvolution import convolve
 
-def sobelFilter(name):
-    #read image
-    image = cv2.imread("Valve_original_wiki.png",0)
+def start():
+    # read image
+    image = cv2.imread("Valve_original_wiki.png", 0)
     if image is None:
         print("No image available")
         return "No image available"
 
-    sobelX = cv2.Sobel(image,cv2.CV_64F,1,0,ksize=3)
-    sobelY = cv2.Sobel(image,cv2.CV_64F,0,1,ksize=3)
-    sobelXY = cv2.Sobel(image,cv2.CV_64F,1,1,ksize=3)
+    #cv2 sobel filters
+    start = timer()
+    cv2_vertical, cv2_horizontal = cv2_sobel_filters(image)
+    end = timer()
+    print("cv2 Sobel Total Time: ", end - start)
+    show_image(cv2_vertical, "cv2 vertical sobel")
+    show_image(cv2_horizontal, "cv2 horizontal sobel")
 
-    filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
-    kernel = gaussian_kernel(3)
-    newKernel = gkern(3,1)
+    image = cv2.imread("Valve_original_wiki.png", 0)
+    #manual sobel filters
+    start = timer()
+    vertical, horizontal = manual_sobel_filter(image)
+    end = timer()
+    print("Manual Sobel Total Time: ", end - start)
+    show_image(vertical, "Manual Sobel Vertical")
+    show_image(horizontal, "Manual Sobel Horizontal")
 
-    convImage = convolution(image, kernel)
-    sobelledImage = convolution(convImage, filter)
-    sobelledImageT = convolution(convImage, np.flip(filter.T, axis=0))
+def manual_sobel_filter(image):
+    vertical_sobel_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    horizontal_sobel_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
-    show_image(image,"o")
-    show_image(convolution(image, kernel),"o")
-    show_image(convolution(image, kernel, True),"o")
-    show_image(sobelledImage,"sobelled hort")
-    show_image(sobelX,"x")
-    show_image(sobelY,"y")
-    show_image(sobelledImageT,"sobelled vert")
+    blurred_image = gaussianBlur(image)
+    sobelled_image_vertical = convolution(blurred_image, vertical_sobel_filter)
+    sobelled_image_horizontal = convolution(blurred_image, horizontal_sobel_filter)
 
-    gradient_magnitude = np.sqrt(np.square(sobelledImage) + np.square(sobelledImageT))
+    return sobelled_image_vertical, sobelled_image_horizontal
 
-    gradient_magnitude *= 255.0 / gradient_magnitude.max()
+def cv2_sobel_filters(image):
+    sobel_vertical = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=3)
+    sobel_horizontal = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=3)
 
-    show_image(gradient_magnitude, "gradiented")
+    return sobel_vertical, sobel_horizontal
 
-def gkern(l=5, sig=1.):
-    """\
-    creates gaussian kernel with side length `l` and a sigma of `sig`
-    """
-    ax = np.linspace(-(l - 1) / 2., (l - 1) / 2., l)
-    gauss = np.exp(-0.5 * np.square(ax) / np.square(sig))
-    kernel = np.outer(gauss, gauss)
-    return kernel / np.sum(kernel)
+def gaussianBlur(image):
+    kernel = get_gaussian_kernel(3)
+    result = convolution(image, kernel)
+
+    return result
+
+def get_gaussian_kernel(size, sigma=1):
+    x = np.linspace(-(size - 1) / 2., (size - 1) / 2., size)
+    gaussian = np.exp(-0.5 * np.square(x) / np.square(sigma))
+    kernel = np.outer(gaussian, gaussian)
+    result = kernel / np.sum(kernel)
+
+    return result
 
 def show_image(image, title):
-    plt.imshow(image,cmap="gray", aspect='auto')
+    plt.imshow(image, cmap="gray", aspect='auto')
     plt.title(title)
     plt.show()
 
-def gaussian_kernel(size, sigma=1):
-    kernel_1D = np.linspace(-(size // 2), size // 2, size)
-    for i in range(size):
-        kernel_1D[i] = dnorm(kernel_1D[i], 0, sigma)
-    kernel_2D = np.outer(kernel_1D.T, kernel_1D.T)
-
-    kernel_2D *= 1.0 / kernel_2D.max()
-
-    return kernel_2D
-
-def dnorm(x, mu, sd):
-    return 1 / (np.sqrt(2 * np.pi) * sd) * np.e ** (-np.power((x - mu) / sd, 2) / 2)
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    sobelFilter('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    start()

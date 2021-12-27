@@ -1,117 +1,154 @@
-import math
 import cv2
 import matplotlib.pyplot as plt
 from convolution import convolution
 import numpy as np
+from timeit import default_timer as timer
 
 
-def sobel_edge_detection(blurred_image, edge_filter):
-    filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+def start():
+    # read image
+    image = cv2.imread("Valve_original_wiki.png", 0)
+    if image is None:
+        print("No image available")
+        return "No image available"
 
-    sobelledImage = convolution(blurred_image, filter)
-    sobelledImageT = convolution(blurred_image, np.flip(filter.T, axis=0))
+    # cv2 canny
+    t1, t2 = 10, 20
+    start = timer()
+    cv2_canny_image = cv2_canny(image, t1, t2)
+    end = timer()
+    print("cv2 Canny Total Time: ", end - start)
+    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
+    t1, t2 = 100, 200
+    cv2_canny_image = cv2_canny(image, t1, t2)
+    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
+    t1, t2 = 200, 500
+    cv2_canny_image = cv2_canny(image, t1, t2)
+    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
 
-    gradient_magnitude = np.sqrt(np.square(sobelledImage) + np.square(sobelledImageT))
+    image = cv2.imread("Valve_original_wiki.png", 0)
+    # manual canny edge detect
+    t1, t2 = 1, 2
+    start = timer()
+    canny_image = canny_edge_detect(image, t1, t2)
+    end = timer()
+    print("Manual Canny Total Time: ", end - start)
+    show_image(canny_image, ("Manual Canny", t1, t2))
+    t1, t2 = 10, 20
+    cv2_canny_image = canny_edge_detect(image, t1, t2)
+    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
+    t1, t2 = 20, 50
+    cv2_canny_image = canny_edge_detect(image, t1, t2)
+    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
 
+
+def cv2_canny(image, thresh1, thresh2):
+    result = cv2.Canny(image, thresh1, thresh2)
+    return result
+
+
+def manual_sobel_edge_detect(image, kernel_size):
+    sobelled_image_vertical, sobelled_image_horizontal = manual_sobel_filter(image, kernel_size)
+
+    gradient_magnitude = np.sqrt(
+        np.square(sobelled_image_vertical) + np.square(sobelled_image_horizontal))
     gradient_magnitude *= 255.0 / gradient_magnitude.max()
 
-    gradient_direction = np.arctan2(sobelledImageT, sobelledImage)
-
+    # calculating gradient direction
+    gradient_direction = np.arctan2(sobelled_image_horizontal, sobelled_image_vertical)
+    # convert radian to degree
     gradient_direction = np.rad2deg(gradient_direction)
+    # rad2deg returns -180 to 180, add 180 to make thresholds 0 to 360
     gradient_direction += 180
 
     return gradient_magnitude, gradient_direction
 
 
-def cannyEdge():
-    #read image
-    image = cv2.imread("Valve_original_wiki.png",0)
-    if image is None:
-        print("No image available")
-        return "No image available"
+def manual_sobel_filter(image, kernel_size):
+    vertical_sobel_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    horizontal_sobel_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
-    blurred_image = gaussian_blur(image, kernel_size=9, verbose=False)
+    blurred_image = gaussianBlur(image, kernel_size)
+    sobelled_image_vertical = convolution(blurred_image, vertical_sobel_filter)
+    sobelled_image_horizontal = convolution(blurred_image, horizontal_sobel_filter)
 
-    edge_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    return sobelled_image_vertical, sobelled_image_horizontal
 
-    gradient_magnitude, gradient_direction = sobel_edge_detection(blurred_image, edge_filter)
 
-    new_image = non_max_suppression(gradient_magnitude, gradient_direction)
+def canny_edge_detect(image, t1, t2):
+    magnitude_gradient, direction = manual_sobel_edge_detect(image, 3)
 
-    weak = 50
+    result = non_maxima_suppression(magnitude_gradient, direction)
+    result = threshold(result, t1, t2)
 
-    new_image = threshold(new_image, 5, 20, weak=weak)
+    result = hysteresis(result)
 
-    new_image = hysteresis(new_image, weak)
+    return result
 
-    plt.imshow(new_image, cmap='gray')
-    plt.title("Canny Edge Detector")
-    plt.show()
 
-def non_max_suppression(gradient_magnitude, gradient_direction):
-    image_row, image_col = gradient_magnitude.shape
+# to remove duplicate edges
+def non_maxima_suppression(magnitude_gradient, direction):
+    rows, columns = magnitude_gradient.shape
 
-    output = np.zeros(gradient_magnitude.shape)
+    # create 0 vector as start, all black image
+    result = np.zeros(magnitude_gradient.shape)
+    pi_degree = 180
 
-    PI = 180
+    for row in range(1, rows - 1):
+        for col in range(1, columns - 1):
+            current_dir = direction[row, col]
 
-    for row in range(1, image_row - 1):
-        for col in range(1, image_col - 1):
-            direction = gradient_direction[row, col]
+            if (0 <= current_dir < pi_degree / 8) or (2 * pi_degree >= current_dir >= 15 * pi_degree / 8):
+                neighbour1 = magnitude_gradient[row, col - 1]
+                neighbour2 = magnitude_gradient[row, col + 1]
 
-            if (0 <= direction < PI / 8) or (15 * PI / 8 <= direction <= 2 * PI):
-                before_pixel = gradient_magnitude[row, col - 1]
-                after_pixel = gradient_magnitude[row, col + 1]
+            elif (pi_degree / 8 <= current_dir < 3 * pi_degree / 8) or (11 * pi_degree / 8 >= current_dir > 9 * pi_degree / 8):
+                neighbour1 = magnitude_gradient[row + 1, col - 1]
+                neighbour2 = magnitude_gradient[row - 1, col + 1]
 
-            elif (PI / 8 <= direction < 3 * PI / 8) or (9 * PI / 8 <= direction < 11 * PI / 8):
-                before_pixel = gradient_magnitude[row + 1, col - 1]
-                after_pixel = gradient_magnitude[row - 1, col + 1]
-
-            elif (3 * PI / 8 <= direction < 5 * PI / 8) or (11 * PI / 8 <= direction < 13 * PI / 8):
-                before_pixel = gradient_magnitude[row - 1, col]
-                after_pixel = gradient_magnitude[row + 1, col]
+            elif (3 * pi_degree / 8 <= current_dir < 5 * pi_degree / 8) or (13 * pi_degree / 8 >= current_dir > 11 * pi_degree / 8):
+                neighbour1 = magnitude_gradient[row - 1, col]
+                neighbour2 = magnitude_gradient[row + 1, col]
 
             else:
-                before_pixel = gradient_magnitude[row - 1, col - 1]
-                after_pixel = gradient_magnitude[row + 1, col + 1]
+                neighbour1 = magnitude_gradient[row - 1, col - 1]
+                neighbour2 = magnitude_gradient[row + 1, col + 1]
 
-            if gradient_magnitude[row, col] >= before_pixel and gradient_magnitude[row, col] >= after_pixel:
-                output[row, col] = gradient_magnitude[row, col]
+            if magnitude_gradient[row, col] >= neighbour1 and magnitude_gradient[
+                row, col] >= neighbour2:
+                result[row, col] = magnitude_gradient[row, col]
 
-    return output
+    return result
 
 
-def threshold(image, low, high, weak, verbose=False):
+def threshold(image, low, high):
+    # white
+    white = 255
+    gray = 45
+    # all black image
     output = np.zeros(image.shape)
 
-    strong = 255
+    gray_rows, gray_cols = np.where((image <= high) & (image >= low))
+    white_rows, white_cols = np.where(image >= high)
 
-    strong_row, strong_col = np.where(image >= high)
-    weak_row, weak_col = np.where((image <= high) & (image >= low))
-
-    output[strong_row, strong_col] = strong
-    output[weak_row, weak_col] = weak
-
-    if verbose:
-        plt.imshow(output, cmap='gray')
-        plt.title("threshold")
-        plt.show()
+    output[gray_rows, gray_cols] = gray
+    output[white_rows, white_cols] = white
 
     return output
 
 
-def hysteresis(image, weak):
+def hysteresis(image):
+    gray = 45
     image_row, image_col = image.shape
 
     top_to_bottom = image.copy()
 
     for row in range(1, image_row):
         for col in range(1, image_col):
-            if top_to_bottom[row, col] == weak:
+            if top_to_bottom[row, col] == gray:
                 if top_to_bottom[row, col + 1] == 255 or top_to_bottom[row, col - 1] == 255 or top_to_bottom[row - 1, col] == 255 or top_to_bottom[
-                    row + 1, col] == 255 or top_to_bottom[
-                    row - 1, col - 1] == 255 or top_to_bottom[row + 1, col - 1] == 255 or top_to_bottom[row - 1, col + 1] == 255 or top_to_bottom[
-                    row + 1, col + 1] == 255:
+                    row + 1, col] == 255 or top_to_bottom[row - 1, col - 1] == 255 or top_to_bottom[row + 1, col - 1] == 255 or top_to_bottom[
+                    row - 1, col + 1] == 255 or top_to_bottom[row + 1, col + 1] == 255:
                     top_to_bottom[row, col] = 255
                 else:
                     top_to_bottom[row, col] = 0
@@ -120,11 +157,10 @@ def hysteresis(image, weak):
 
     for row in range(image_row - 1, 0, -1):
         for col in range(image_col - 1, 0, -1):
-            if bottom_to_top[row, col] == weak:
+            if bottom_to_top[row, col] == gray:
                 if bottom_to_top[row, col + 1] == 255 or bottom_to_top[row, col - 1] == 255 or bottom_to_top[row - 1, col] == 255 or bottom_to_top[
-                    row + 1, col] == 255 or bottom_to_top[
-                    row - 1, col - 1] == 255 or bottom_to_top[row + 1, col - 1] == 255 or bottom_to_top[row - 1, col + 1] == 255 or bottom_to_top[
-                    row + 1, col + 1] == 255:
+                    row + 1, col] == 255 or bottom_to_top[row - 1, col - 1] == 255 or bottom_to_top[row + 1, col - 1] == 255 or bottom_to_top[
+                    row - 1, col + 1] == 255 or bottom_to_top[row + 1, col + 1] == 255:
                     bottom_to_top[row, col] = 255
                 else:
                     bottom_to_top[row, col] = 0
@@ -133,11 +169,10 @@ def hysteresis(image, weak):
 
     for row in range(1, image_row):
         for col in range(image_col - 1, 0, -1):
-            if right_to_left[row, col] == weak:
+            if right_to_left[row, col] == gray:
                 if right_to_left[row, col + 1] == 255 or right_to_left[row, col - 1] == 255 or right_to_left[row - 1, col] == 255 or right_to_left[
-                    row + 1, col] == 255 or right_to_left[
-                    row - 1, col - 1] == 255 or right_to_left[row + 1, col - 1] == 255 or right_to_left[row - 1, col + 1] == 255 or right_to_left[
-                    row + 1, col + 1] == 255:
+                    row + 1, col] == 255 or right_to_left[row - 1, col - 1] == 255 or right_to_left[row + 1, col - 1] == 255 or right_to_left[
+                    row - 1, col + 1] == 255 or right_to_left[row + 1, col + 1] == 255:
                     right_to_left[row, col] = 255
                 else:
                     right_to_left[row, col] = 0
@@ -146,11 +181,10 @@ def hysteresis(image, weak):
 
     for row in range(image_row - 1, 0, -1):
         for col in range(1, image_col):
-            if left_to_right[row, col] == weak:
+            if left_to_right[row, col] == gray:
                 if left_to_right[row, col + 1] == 255 or left_to_right[row, col - 1] == 255 or left_to_right[row - 1, col] == 255 or left_to_right[
-                    row + 1, col] == 255 or left_to_right[
-                    row - 1, col - 1] == 255 or left_to_right[row + 1, col - 1] == 255 or left_to_right[row - 1, col + 1] == 255 or left_to_right[
-                    row + 1, col + 1] == 255:
+                    row + 1, col] == 255 or left_to_right[row - 1, col - 1] == 255 or left_to_right[row + 1, col - 1] == 255 or left_to_right[
+                    row - 1, col + 1] == 255 or left_to_right[row + 1, col + 1] == 255:
                     left_to_right[row, col] = 255
                 else:
                     left_to_right[row, col] = 0
@@ -162,31 +196,27 @@ def hysteresis(image, weak):
     return final_image
 
 
-def dnorm(x, mu, sd):
-    return 1 / (np.sqrt(2 * np.pi) * sd) * np.e ** (-np.power((x - mu) / sd, 2) / 2)
+def show_image(image, title):
+    plt.imshow(image, cmap="gray", aspect='auto')
+    plt.title(title)
+    plt.show()
 
 
-def gaussian_kernel(size, sigma=1, verbose=False):
-    kernel_1D = np.linspace(-(size // 2), size // 2, size)
-    for i in range(size):
-        kernel_1D[i] = dnorm(kernel_1D[i], 0, sigma)
-    kernel_2D = np.outer(kernel_1D.T, kernel_1D.T)
+def gaussianBlur(image, kernel_size):
+    kernel = get_gaussian_kernel(kernel_size)
+    result = convolution(image, kernel)
 
-    kernel_2D *= 1.0 / kernel_2D.max()
-
-    if verbose:
-        plt.imshow(kernel_2D, interpolation='none', cmap='gray')
-        plt.title("Kernel ( {}X{} )".format(size, size))
-        plt.show()
-
-    return kernel_2D
+    return result
 
 
-def gaussian_blur(image, kernel_size, verbose=False):
-    kernel = gaussian_kernel(kernel_size, sigma=math.sqrt(kernel_size), verbose=verbose)
-    return convolution(image, kernel, average=True)
+def get_gaussian_kernel(size, sigma=1):
+    x = np.linspace(-(size - 1) / 2., (size - 1) / 2., size)
+    gaussian = np.exp(-0.5 * np.square(x) / np.square(sigma))
+    kernel = np.outer(gaussian, gaussian)
+    result = kernel / np.sum(kernel)
 
+    return result
 
 
 if __name__ == '__main__':
-    cannyEdge()
+    start()
