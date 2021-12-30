@@ -1,6 +1,5 @@
 import cv2
 import matplotlib.pyplot as plt
-from convolution import convolution
 import numpy as np
 from timeit import default_timer as timer
 
@@ -18,28 +17,40 @@ def start():
     cv2_canny_image = cv2_canny(image, t1, t2)
     end = timer()
     print("cv2 Canny Total Time: ", end - start)
-    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
-    t1, t2 = 100, 200
+    show_image(cv2_canny_image, ("cv2 Canny", 'threshold bottom:', t1, 'threshold top:', t2))
+    t1, t2 = 20, 50
     cv2_canny_image = cv2_canny(image, t1, t2)
-    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
-    t1, t2 = 200, 500
+    show_image(cv2_canny_image, ("cv2 Canny", 'threshold bottom:', t1, 'threshold top:', t2))
+    t1, t2 = 50, 200
     cv2_canny_image = cv2_canny(image, t1, t2)
-    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
+    show_image(cv2_canny_image, ("cv2 Canny", 'threshold bottom:', t1, 'threshold top:', t2))
 
     image = cv2.imread("Valve_original_wiki.png", 0)
     # manual canny edge detect
     t1, t2 = 1, 2
     start = timer()
-    canny_image = canny_edge_detect(image, t1, t2)
+    canny_image = canny_edge_detect(image, t1, t2, 3)
     end = timer()
     print("Manual Canny Total Time: ", end - start)
-    show_image(canny_image, ("Manual Canny", t1, t2))
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 3))
+    canny_image = canny_edge_detect(image, t1, t2, 5)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 5))
+    canny_image = canny_edge_detect(image, t1, t2, 7)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 7))
     t1, t2 = 10, 20
-    cv2_canny_image = canny_edge_detect(image, t1, t2)
-    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
+    canny_image = canny_edge_detect(image, t1, t2, 3)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 3))
+    canny_image = canny_edge_detect(image, t1, t2, 7)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 5))
+    canny_image = canny_edge_detect(image, t1, t2, 5)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 7))
     t1, t2 = 20, 50
-    cv2_canny_image = canny_edge_detect(image, t1, t2)
-    show_image(cv2_canny_image, ("cv2 Canny", t1, t2))
+    canny_image = canny_edge_detect(image, t1, t2, 3)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 3))
+    canny_image = canny_edge_detect(image, t1, t2, 7)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 5))
+    canny_image = canny_edge_detect(image, t1, t2, 5)
+    show_image(canny_image, ("Manual Canny", 'threshold bottom:', t1, 'threshold top:', t2, 'sigma:', 7))
 
 
 def cv2_canny(image, thresh1, thresh2):
@@ -47,40 +58,32 @@ def cv2_canny(image, thresh1, thresh2):
     return result
 
 
-def manual_sobel_edge_detect(image, kernel_size):
-    sobelled_image_vertical, sobelled_image_horizontal = manual_sobel_filter(image, kernel_size)
-
-    gradient_magnitude = np.sqrt(
-        np.square(sobelled_image_vertical) + np.square(sobelled_image_horizontal))
-    gradient_magnitude *= 255.0 / gradient_magnitude.max()
-
-    # calculating gradient direction
-    gradient_direction = np.arctan2(sobelled_image_horizontal, sobelled_image_vertical)
-    # convert radian to degree
-    gradient_direction = np.rad2deg(gradient_direction)
-    # rad2deg returns -180 to 180, add 180 to make thresholds 0 to 360
-    gradient_direction += 180
-
-    return gradient_magnitude, gradient_direction
-
-
-def manual_sobel_filter(image, kernel_size):
+def manual_sobel_edge_detect(image, kernel_size, sigma):
     vertical_sobel_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
     horizontal_sobel_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
-    blurred_image = gaussianBlur(image, kernel_size)
-    sobelled_image_vertical = convolution(blurred_image, vertical_sobel_filter)
-    sobelled_image_horizontal = convolution(blurred_image, horizontal_sobel_filter)
+    blurred_image = gaussianBlur(image, kernel_size, sigma)
+    sobelled_image_vertical = convolve(blurred_image, vertical_sobel_filter)
+    sobelled_image_horizontal = convolve(blurred_image, horizontal_sobel_filter)
 
-    return sobelled_image_vertical, sobelled_image_horizontal
+    magnitude_gradient = np.sqrt(
+        np.square(sobelled_image_vertical) + np.square(sobelled_image_horizontal))
+    magnitude_gradient *= 255.0 / magnitude_gradient.max()
+
+    # get direction of gradient
+    direction = np.arctan2(sobelled_image_horizontal, sobelled_image_vertical)
+    # converto to degrees
+    direction = np.rad2deg(direction)
+    direction += 180
+
+    return magnitude_gradient, direction
 
 
-def canny_edge_detect(image, t1, t2):
-    magnitude_gradient, direction = manual_sobel_edge_detect(image, 3)
+def canny_edge_detect(image, t1, t2, sigma):
+    magnitude_gradient, direction = manual_sobel_edge_detect(image, 3, sigma)
 
     result = non_maxima_suppression(magnitude_gradient, direction)
     result = threshold(result, t1, t2)
-
     result = hysteresis(result)
 
     return result
@@ -141,59 +144,59 @@ def hysteresis(image):
     gray = 45
     image_row, image_col = image.shape
 
-    top_to_bottom = image.copy()
+    top_to_bot = image.copy()
 
     for row in range(1, image_row):
         for col in range(1, image_col):
-            if top_to_bottom[row, col] == gray:
-                if top_to_bottom[row, col + 1] == 255 or top_to_bottom[row, col - 1] == 255 or top_to_bottom[row - 1, col] == 255 or top_to_bottom[
-                    row + 1, col] == 255 or top_to_bottom[row - 1, col - 1] == 255 or top_to_bottom[row + 1, col - 1] == 255 or top_to_bottom[
-                    row - 1, col + 1] == 255 or top_to_bottom[row + 1, col + 1] == 255:
-                    top_to_bottom[row, col] = 255
+            if top_to_bot[row, col] == gray:
+                if top_to_bot[row, col + 1] == 255 or top_to_bot[row, col - 1] == 255 or top_to_bot[row - 1, col] == 255 or top_to_bot[
+                    row + 1, col] == 255 or top_to_bot[row - 1, col - 1] == 255 or top_to_bot[row + 1, col - 1] == 255 or top_to_bot[
+                    row - 1, col + 1] == 255 or top_to_bot[row + 1, col + 1] == 255:
+                    top_to_bot[row, col] = 255
                 else:
-                    top_to_bottom[row, col] = 0
+                    top_to_bot[row, col] = 0
 
-    bottom_to_top = image.copy()
+    bot_to_top = image.copy()
 
     for row in range(image_row - 1, 0, -1):
         for col in range(image_col - 1, 0, -1):
-            if bottom_to_top[row, col] == gray:
-                if bottom_to_top[row, col + 1] == 255 or bottom_to_top[row, col - 1] == 255 or bottom_to_top[row - 1, col] == 255 or bottom_to_top[
-                    row + 1, col] == 255 or bottom_to_top[row - 1, col - 1] == 255 or bottom_to_top[row + 1, col - 1] == 255 or bottom_to_top[
-                    row - 1, col + 1] == 255 or bottom_to_top[row + 1, col + 1] == 255:
-                    bottom_to_top[row, col] = 255
+            if bot_to_top[row, col] == gray:
+                if bot_to_top[row, col + 1] == 255 or bot_to_top[row, col - 1] == 255 or bot_to_top[row - 1, col] == 255 or bot_to_top[
+                    row + 1, col] == 255 or bot_to_top[row - 1, col - 1] == 255 or bot_to_top[row + 1, col - 1] == 255 or bot_to_top[
+                    row - 1, col + 1] == 255 or bot_to_top[row + 1, col + 1] == 255:
+                    bot_to_top[row, col] = 255
                 else:
-                    bottom_to_top[row, col] = 0
+                    bot_to_top[row, col] = 0
 
-    right_to_left = image.copy()
+    r_to_l = image.copy()
 
     for row in range(1, image_row):
         for col in range(image_col - 1, 0, -1):
-            if right_to_left[row, col] == gray:
-                if right_to_left[row, col + 1] == 255 or right_to_left[row, col - 1] == 255 or right_to_left[row - 1, col] == 255 or right_to_left[
-                    row + 1, col] == 255 or right_to_left[row - 1, col - 1] == 255 or right_to_left[row + 1, col - 1] == 255 or right_to_left[
-                    row - 1, col + 1] == 255 or right_to_left[row + 1, col + 1] == 255:
-                    right_to_left[row, col] = 255
+            if r_to_l[row, col] == gray:
+                if r_to_l[row, col + 1] == 255 or r_to_l[row, col - 1] == 255 or r_to_l[row - 1, col] == 255 or r_to_l[
+                    row + 1, col] == 255 or r_to_l[row - 1, col - 1] == 255 or r_to_l[row + 1, col - 1] == 255 or r_to_l[
+                    row - 1, col + 1] == 255 or r_to_l[row + 1, col + 1] == 255:
+                    r_to_l[row, col] = 255
                 else:
-                    right_to_left[row, col] = 0
+                    r_to_l[row, col] = 0
 
-    left_to_right = image.copy()
+    l_to_r = image.copy()
 
     for row in range(image_row - 1, 0, -1):
         for col in range(1, image_col):
-            if left_to_right[row, col] == gray:
-                if left_to_right[row, col + 1] == 255 or left_to_right[row, col - 1] == 255 or left_to_right[row - 1, col] == 255 or left_to_right[
-                    row + 1, col] == 255 or left_to_right[row - 1, col - 1] == 255 or left_to_right[row + 1, col - 1] == 255 or left_to_right[
-                    row - 1, col + 1] == 255 or left_to_right[row + 1, col + 1] == 255:
-                    left_to_right[row, col] = 255
+            if l_to_r[row, col] == gray:
+                if l_to_r[row, col + 1] == 255 or l_to_r[row, col - 1] == 255 or l_to_r[row - 1, col] == 255 or l_to_r[
+                    row + 1, col] == 255 or l_to_r[row - 1, col - 1] == 255 or l_to_r[row + 1, col - 1] == 255 or l_to_r[
+                    row - 1, col + 1] == 255 or l_to_r[row + 1, col + 1] == 255:
+                    l_to_r[row, col] = 255
                 else:
-                    left_to_right[row, col] = 0
+                    l_to_r[row, col] = 0
 
-    final_image = top_to_bottom + bottom_to_top + right_to_left + left_to_right
+    result = top_to_bot + bot_to_top + r_to_l + l_to_r
+    # limit at 255
+    result[result > 255] = 255
 
-    final_image[final_image > 255] = 255
-
-    return final_image
+    return result
 
 
 def show_image(image, title):
@@ -202,9 +205,32 @@ def show_image(image, title):
     plt.show()
 
 
-def gaussianBlur(image, kernel_size):
-    kernel = get_gaussian_kernel(kernel_size)
-    result = convolution(image, kernel)
+def gaussianBlur(image, kernel_size, sigma):
+    kernel = get_gaussian_kernel(kernel_size, sigma)
+    result = convolve(image, kernel)
+
+    return result
+
+
+def convolve(image, kernel):
+    k_rows, k_cols = kernel.shape
+    rows, cols = image.shape
+    result = np.zeros(image.shape)
+
+    vert = (k_rows - 1)
+    hort = (k_cols - 1)
+    padding_vert = int(vert / 2)
+    padding_hort = int(hort / 2)
+
+    padded_shape_vert = rows + (2 * padding_vert)
+    padded_shape_hort = cols + (2 * padding_hort)
+    padded = np.zeros((padded_shape_vert, padded_shape_hort))
+
+    padded[padding_vert:padded.shape[0] - padding_vert, padding_hort:padded.shape[1] - padding_hort] = image
+
+    for row in range(rows):
+        for col in range(cols):
+            result[row, col] = np.sum(kernel * padded[row:row + k_rows, col:col + k_cols])
 
     return result
 

@@ -1,12 +1,7 @@
 import cv2
 import matplotlib.pyplot as plt
-from convolution import convolution
 import numpy as np
 from timeit import default_timer as timer
-
-from ManualConvolution import get_padding_width_per_side
-from ManualConvolution import add_padding_to_image
-from ManualConvolution import convolve
 
 def start():
     # read image
@@ -37,8 +32,8 @@ def manual_sobel_filter(image):
     horizontal_sobel_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
     blurred_image = gaussianBlur(image)
-    sobelled_image_vertical = convolution(blurred_image, vertical_sobel_filter)
-    sobelled_image_horizontal = convolution(blurred_image, horizontal_sobel_filter)
+    sobelled_image_vertical = convolve(blurred_image, vertical_sobel_filter)
+    sobelled_image_horizontal = convolve(blurred_image, horizontal_sobel_filter)
 
     return sobelled_image_vertical, sobelled_image_horizontal
 
@@ -50,7 +45,7 @@ def cv2_sobel_filters(image):
 
 def gaussianBlur(image):
     kernel = get_gaussian_kernel(3)
-    result = convolution(image, kernel)
+    result = convolve(image, kernel)
 
     return result
 
@@ -66,6 +61,28 @@ def show_image(image, title):
     plt.imshow(image, cmap="gray", aspect='auto')
     plt.title(title)
     plt.show()
+
+def convolve(image, kernel):
+    k_rows, k_cols = kernel.shape
+    rows, cols = image.shape
+    result = np.zeros(image.shape)
+
+    vert = (k_rows - 1)
+    hort= (k_cols - 1)
+    padding_vert = int(vert / 2)
+    padding_hort = int(hort / 2)
+
+    padded_shape_vert = rows + (2 * padding_vert)
+    padded_shape_hort = cols + (2 * padding_hort)
+    padded = np.zeros((padded_shape_vert, padded_shape_hort))
+
+    padded[padding_vert:padded.shape[0] - padding_vert, padding_hort:padded.shape[1] - padding_hort] = image
+
+    for row in range(rows):
+        for col in range(cols):
+            result[row, col] = np.sum(kernel * padded[row:row + k_rows, col:col + k_cols])
+
+    return result
 
 if __name__ == '__main__':
     start()

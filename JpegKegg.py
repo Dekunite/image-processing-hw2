@@ -2,8 +2,6 @@ import numpy as np
 import cv2
 from matplotlib import pyplot as plt
 
-import os
-
 def showImage(img):
     plt.figure(figsize=(15,15))
     plt.imshow(img,cmap='gray')
@@ -84,7 +82,6 @@ if __name__ == "__main__":
 
     invList = []
     for ipart in DCToutput:
-        ipart
         curriDCT = cv2.idct(ipart)
         invList.append(curriDCT)
 
