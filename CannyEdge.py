@@ -4,7 +4,7 @@ import numpy as np
 from timeit import default_timer as timer
 
 
-def start():
+def canny_edge_start():
     # read image
     image = cv2.imread("Valve_original_wiki.png", 0)
     if image is None:
@@ -59,20 +59,26 @@ def cv2_canny(image, thresh1, thresh2):
 
 
 def manual_sobel_edge_detect(image, kernel_size, sigma):
+    #define vertical sobel filter matrix
     vertical_sobel_filter = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    #define horizontal sobel filter matrix
     horizontal_sobel_filter = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
 
+    #apply gaussian smoothing on the
     blurred_image = gaussianBlur(image, kernel_size, sigma)
+    #apply vertical sobel mask
     sobelled_image_vertical = convolve(blurred_image, vertical_sobel_filter)
+    #apply horizontal sobel mask
     sobelled_image_horizontal = convolve(blurred_image, horizontal_sobel_filter)
 
+    #calculate the magnitude gradient of the filtered image, normalize it
     magnitude_gradient = np.sqrt(
         np.square(sobelled_image_vertical) + np.square(sobelled_image_horizontal))
     magnitude_gradient *= 255.0 / magnitude_gradient.max()
 
     # get direction of gradient
     direction = np.arctan2(sobelled_image_horizontal, sobelled_image_vertical)
-    # converto to degrees
+    # convert to degrees
     direction = np.rad2deg(direction)
     direction += 180
 
@@ -80,10 +86,15 @@ def manual_sobel_edge_detect(image, kernel_size, sigma):
 
 
 def canny_edge_detect(image, t1, t2, sigma):
+    #execute sobel edge detection
     magnitude_gradient, direction = manual_sobel_edge_detect(image, 3, sigma)
-
+    #apply non miximum suppresion on the image
+    #remove duplicate edges
     result = non_maxima_suppression(magnitude_gradient, direction)
+    #modify the image according to the threshold values
     result = threshold(result, t1, t2)
+    #finally perform hysterisis on the image
+    #get rid of unconnected edges
     result = hysteresis(result)
 
     return result
@@ -130,10 +141,8 @@ def threshold(image, low, high):
     gray = 45
     # all black image
     output = np.zeros(image.shape)
-
     gray_rows, gray_cols = np.where((image <= high) & (image >= low))
     white_rows, white_cols = np.where(image >= high)
-
     output[gray_rows, gray_cols] = gray
     output[white_rows, white_cols] = white
 
@@ -206,12 +215,14 @@ def show_image(image, title):
 
 
 def gaussianBlur(image, kernel_size, sigma):
+    #create a gaussian kernel
     kernel = get_gaussian_kernel(kernel_size, sigma)
+    #apply gaussian kernel by convolution
     result = convolve(image, kernel)
 
     return result
 
-
+#convolution method to apply masks on images
 def convolve(image, kernel):
     k_rows, k_cols = kernel.shape
     rows, cols = image.shape
@@ -236,6 +247,7 @@ def convolve(image, kernel):
 
 
 def get_gaussian_kernel(size, sigma=1):
+    #create a normal distrubution gaussian using the formula
     x = np.linspace(-(size - 1) / 2., (size - 1) / 2., size)
     gaussian = np.exp(-0.5 * np.square(x) / np.square(sigma))
     kernel = np.outer(gaussian, gaussian)
@@ -245,4 +257,4 @@ def get_gaussian_kernel(size, sigma=1):
 
 
 if __name__ == '__main__':
-    start()
+    canny_edge_start()

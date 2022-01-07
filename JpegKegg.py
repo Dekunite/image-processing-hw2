@@ -1,6 +1,8 @@
 import numpy as np
 import cv2
 from matplotlib import pyplot as plt
+from skimage.metrics import structural_similarity as ssim
+from math import log10, sqrt
 
 def showImage(img):
     plt.figure(figsize=(15,15))
@@ -44,6 +46,40 @@ def selectQMatrix(qName):
     else:
         return np.ones((8,8)) #it suppose to return original image back
 
+def MSE_comparison(image, compressed):
+    err = np.sum((image.astype("float") - compressed.astype("float")) ** 2)
+    err /= float(image.shape[0] * image.shape[1])
+
+    return err
+
+def compare_images(imageA, imageB, title):
+    # compute the mean squared error and structural similarity
+    # index for the images
+    m = MSE_comparison(imageA, imageB)
+    s = ssim(imageA, imageB)
+    # setup the figure
+    fig = plt.figure(title)
+    plt.suptitle("MSE: %.2f, SSIM: %.2f" % (m, s))
+    # show first image
+    ax = fig.add_subplot(1, 2, 1)
+    plt.imshow(imageA, cmap = plt.cm.gray)
+    plt.axis("off")
+    # show the second image
+    ax = fig.add_subplot(1, 2, 2)
+    plt.imshow(imageB, cmap = plt.cm.gray)
+    plt.axis("off")
+    # show the images
+    plt.show()
+
+def PSNR(original, compressed):
+    mse = np.mean((original - compressed) ** 2)
+    print("mse: ", mse)
+    if(mse == 0):  # MSE is zero means no noise is present in the signal .
+        # Therefore PSNR have no importance.
+        return 100
+    max_pixel = 255.0
+    psnr = 20 * log10(max_pixel / sqrt(mse))
+    return psnr
 
 if __name__ == "__main__":
     img = cv2.imread("Valve_original_wiki.png",0)
@@ -53,7 +89,6 @@ if __name__ == "__main__":
     width = len(img[0]) # one row of image
     sliced = [] # new list for 8x8 sliced image
     block = 8
-    print("The image heigh is " +str(height)+", and image width is "+str(width)+" pixels")
 
     #dividing 8x8 parts
     currY = 0 #current Y index
@@ -63,9 +98,6 @@ if __name__ == "__main__":
             sliced.append(img[currY:i,currX:j]-np.ones((8,8))*128) #Extracting 128 from all pixels
             currX = j
         currY = i
-
-    print("Size of the sliced image: "+str(len(sliced)))
-    print("Each elemend of sliced list contains a "+ str(sliced[0].shape)+ " element.")
 
     imf = [np.float32(img) for img in sliced]
 
@@ -95,5 +127,8 @@ if __name__ == "__main__":
     ress = np.array(ress, int)
 
     cv2.imwrite("jjjpe.jpeg",(ress).astype(np.uint8))
+    compare_images(img, ress,"tititititit")
+    value = PSNR(img, ress)
+    print(f"PSNR value is {value} dB")
 
     showImage(res)

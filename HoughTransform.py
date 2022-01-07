@@ -4,7 +4,7 @@ import numpy as np
 from timeit import default_timer as timer
 from CannyEdge import canny_edge_detect
 
-def start():
+def hough_transform_start():
     # read image
     image = cv2.imread("Valve_original_wiki.png", 0)
     if image is None:
@@ -20,11 +20,9 @@ def start():
     image = cv2.imread("Valve_original_wiki.png", 0)
     #manual hough transform
     start = timer()
-    lines, circles = manual_hough_transform(image)
+    manual_hough_transform(image)
     end = timer()
     print("Manual hough Transform Total Time: ", end - start)
-    show_image(lines, "Manual Hough Lines")
-    show_image(circles, "Manual Hough Circles")
 
 def cv2_hough_transform(image):
     cv2_hough_lines(image)
@@ -32,9 +30,9 @@ def cv2_hough_transform(image):
 
 def cv2_hough_lines(image):
     canny_edge = cv2.Canny(image, 50, 150, apertureSize=3)
-    hough_lines = cv2.HoughLines(canny_edge, 1, np.pi / 180, 200)
+    lines = cv2.HoughLines(canny_edge, 1, np.pi / 180, 100)
 
-    for r, theta in hough_lines[0]:
+    for r, theta in lines[0]:
         a = np.cos(theta)
         b = np.sin(theta)
         x0 = a * r
@@ -46,21 +44,19 @@ def cv2_hough_lines(image):
         #draw a line from x1,y1 to x2,y2
         cv2.line(image, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
-    cv2.imshow('linesDetected.jpg', image)
+    cv2.imwrite('Lines.jpg', image)
 
 def cv2_hough_circles(image):
-    image = cv2.medianBlur(image, 5)
-    hough_circle = cv2.HoughCircles(image, cv2.HOUGH_GRADIENT, 1, 100, param1=70, param2=60,
-                                        minRadius=10, maxRadius=100)
-    hough_circle = np.uint16(np.around(hough_circle))
-    for i in hough_circle[0, :]:
+    #image = cv2.medianBlur(image, 3)
+    circles = cv2.HoughCircles(image, cv2.HOUGH_GRADIENT, 1, 100, param1=70, param2=60,
+                                        minRadius=50, maxRadius=150)
+    circles = np.uint16(np.around(circles))
+    for i in circles[0, :]:
         #outer circle
         cv2.circle(image, (i[0], i[1]), i[2], (0, 255, 0), 2)
         #middle of circle
         cv2.circle(image, (i[0], i[1]), 2, (0, 0, 255), 3)
-    cv2.imshow('Circles', image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    cv2.imwrite('Circles.jpg', image)
 
 def manual_hough_transform(image):
     manual_hough_lines(image)
@@ -68,60 +64,42 @@ def manual_hough_transform(image):
 
 def manual_hough_lines(image):
     #use the same manual canny edge detection technique
-    canny_edges = canny_edge_detect(image,10,100,1)
-
-    # run hough_lines_accumulator on the shapes canny_edges image
-    H, rhos, thetas = get_hough_accumulator(canny_edges)
-    indicies = hough_simple_peaks(H, 3) # find peaks
-    plot_hough_acc(H) # plot hough space, brighter spots have higher votes
-    hough_lines_draw(image, indicies, rhos, thetas)
-
-    # Show image with manual Hough Transform Lines
-    cv2.imshow('Major Lines: Manual Hough Transform', image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    canny = canny_edge_detect(image,10,100,1)
+    accumulator, rhos, thetas = get_accumulator_rho_theta(canny)
+    indexes = get_peaks(accumulator, 3) # find peaks
+    draw_lines(image, indexes, rhos, thetas)
+    cv2.imwrite('Manual Hough Transform.jpg', image)
 
 #calculate hough accumulator
-def get_hough_accumulator(img, rho_resolution=1, theta_resolution=1):
+def get_accumulator_rho_theta(img):
+    resolution = 1
     rows, cols = img.shape
-    diagonal = np.ceil(np.sqrt(rows**2 + cols**2)) # a**2 + b**2 = c**2
-    rhos = np.arange(-diagonal, diagonal + 1, rho_resolution)
-    thetas = np.deg2rad(np.arange(-90, 90, theta_resolution))
+    hipotenus = np.ceil(np.sqrt(rows**2 + cols**2))
+    rhos = np.arange(-hipotenus, hipotenus + 1, resolution)
+    thetas = np.deg2rad(np.arange(-90, 90, resolution))
 
     #empty hough accumulator array
     H = np.zeros((len(rhos), len(thetas)), dtype=np.uint64)
-    y_idxs, x_idxs = np.nonzero(img) # find all edge (nonzero) pixel indexes
+    #get non zero pixels
+    nonzero_y, nonzero_x = np.nonzero(img)
 
-    for i in range(len(x_idxs)): # cycle through edge points
-        x = x_idxs[i]
-        y = y_idxs[i]
-
-        for j in range(len(thetas)): # cycle through thetas and calc rho
-            rho = int((x * np.cos(thetas[j]) +
-                       y * np.sin(thetas[j])) + diagonal)
+    for i in range(len(nonzero_x)):
+        current_x = nonzero_x[i]
+        current_y = nonzero_y[i]
+        for j in range(len(thetas)):
+            rho = int((current_x * np.cos(thetas[j]) +
+                       current_y * np.sin(thetas[j])) + hipotenus)
             H[rho, j] += 1
 
     return H, rhos, thetas
 
 
 #find peaks of accumulator
-def hough_simple_peaks(H, num_peaks):
-    indices =  np.argpartition(H.flatten(), -2)[-num_peaks:]
-    return np.vstack(np.unravel_index(indices, H.shape)).T
+def get_peaks(accumulator, peaks):
+    index = np.argpartition(accumulator.flatten(), -2)[-peaks:]
+    return np.vstack(np.unravel_index(index, accumulator.shape)).T
 
-
-def plot_hough_acc(H, plot_title='Hough Accumulator Plot'):
-    fig = plt.figure(figsize=(10, 10))
-    fig.canvas.set_window_title(plot_title)
-
-    plt.imshow(H, cmap='jet')
-
-    plt.xlabel('Theta Direction'), plt.ylabel('Rho Direction')
-    plt.tight_layout()
-    plt.show()
-
-
-def hough_lines_draw(img, indexes, rhos, thetas):
+def draw_lines(img, indexes, rhos, thetas):
     for i in range(len(indexes)):
         rho = rhos[indexes[i][0]]
         theta = thetas[indexes[i][1]]
@@ -138,6 +116,8 @@ def hough_lines_draw(img, indexes, rhos, thetas):
 
 
 def manual_hough_circles(image):
+    print("circles")
+    return
     file_path = './res/HoughCircles.jpg'
     img = imarray("Valve_original_wiki.png")
     res = smoothen(img,display=False)                                               #set display to True to display the edge image
@@ -278,5 +258,4 @@ def convolve(image, kernel):
 
 
 if __name__ == '__main__':
-    image = cv2.imread("Valve_original_wiki.png", 0)
-    manual_hough_lines(image)
+    hough_transform_start()

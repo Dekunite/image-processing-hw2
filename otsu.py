@@ -3,6 +3,14 @@ import cv2
 import matplotlib.pyplot as plt
 from skimage.util import random_noise
 
+def otsu_start():
+    image = cv2.imread("otsu.jpeg", 0)
+    images = ski_gauss(image)
+    show_image(images, "Cv2 Gaussian noise")
+    imagesss = gaussian_noise(image)
+    show_image(imagesss, "Manuel Gaussian noise Var:500")
+    show_image(otsus(images),"Otsu algorithm on cv2 gaussian")
+    show_image(otsus(imagesss),"Otsu algorithm on manual gaussian Var:500")
 
 def otsus(image):
     rows,cols = image.shape
@@ -38,9 +46,10 @@ def show_image(image, title):
 
 def gaussian_noise(image):
     row, column = image.shape
-    #create zero matic
+    #create zero matrix
     result = np.zeros(image.shape, dtype=np.uint8)
     mean = 10
+    #var = 100
     var = 500
     sigma = var**0.5
     #gaussin distribution
@@ -57,9 +66,4 @@ def ski_gauss(image):
     return result
 
 if __name__ == '__main__':
-    image = cv2.imread("otsu.jpeg", 0)
-    images = ski_gauss(image)
-    show_image(images, "gausss")
-    imagesss = gaussian_noise(image)
-    show_image(imagesss, "gausss")
-    show_image(otsus(images),"Otsu algorithm")
+    otsu_start()
